@@ -63,135 +63,25 @@ footer{border-top:1px solid var(--line);padding:24px 5vw;color:#69655f;font-size
 </main>
 <footer><span>© <span id="year"></span> Jahid Gazi</span><span>Graphic Design Portfolio</span></footer>
 <div class="modal" id="modal"><div class="modal-ui"><span class="modal-count" id="modalCount">01 / 01</span><button class="close" aria-label="Close">×</button></div><button class="prev" aria-label="Previous">‹</button><img id="modalImg" alt=""><button class="next" aria-label="Next">›</button></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
 <script>
-const fallbackItems=[
-  {image:"assets/page-04.jpg",title:"Business Card Collection",category:"vector",featured:false,sort:0},
-  {image:"assets/page-05.jpg",title:"Tri-fold Brochure",category:"vector",featured:false,sort:1},
-  {image:"assets/page-06.jpg",title:"Tri-fold Brochure",category:"vector",featured:false,sort:2},
-  {image:"assets/page-07.jpg",title:"Burger Tri-fold Brochure",category:"vector",featured:false,sort:3},
-  {image:"assets/page-08.jpg",title:"Case Study / Agency Layout",category:"vector",featured:false,sort:4},
-  {image:"assets/page-09.jpg",title:"Menu Card",category:"vector",featured:false,sort:5},
-  {image:"assets/page-10.jpg",title:"Magazine Collection",category:"vector",featured:true,sort:6},
-  {image:"assets/page-11.jpg",title:"Instagram Post",category:"vector",featured:false,sort:7},
-  {image:"assets/page-12.jpg",title:"Danglar Collection",category:"vector",featured:false,sort:8},
-  {image:"assets/page-13.jpg",title:"Book Covers",category:"vector",featured:false,sort:9},
-  {image:"assets/page-14.jpg",title:"Packaging",category:"vector",featured:true,sort:10},
-  {image:"assets/page-15.jpg",title:"Standee Collection",category:"vector",featured:false,sort:11},
-  {image:"assets/page-16.jpg",title:"Illustration",category:"vector",featured:false,sort:12},
-  {image:"assets/page-17.jpg",title:"Illustration",category:"vector",featured:false,sort:13},
-  {image:"assets/page-19.jpg",title:"Business Card Collection",category:"raster",featured:false,sort:14},
-  {image:"assets/page-20.jpg",title:"Brochure Collection",category:"raster",featured:false,sort:15},
-  {image:"assets/page-21.jpg",title:"Menu Card Collection",category:"raster",featured:false,sort:16},
-  {image:"assets/page-22.jpg",title:"Magazine Collection",category:"raster",featured:false,sort:17},
-  {image:"assets/page-23.jpg",title:"Instagram Post",category:"raster",featured:false,sort:18},
-  {image:"assets/page-24.jpg",title:"Brochure Collection",category:"raster",featured:false,sort:19},
-  {image:"assets/page-25.jpg",title:"Car Service Brochure",category:"raster",featured:false,sort:20},
-  {image:"assets/page-26.jpg",title:"Book Cover Collection",category:"raster",featured:false,sort:21},
-  {image:"assets/page-27.jpg",title:"Standee Collection",category:"raster",featured:false,sort:22},
-  {image:"assets/page-28.jpg",title:"Digital Painting Collection",category:"digital",featured:true,sort:23},
-  {image:"assets/page-29.jpg",title:"Digital Painting Collection",category:"digital",featured:false,sort:24}
+const items=[
+['page-04.jpg','Business Card Collection','vector'],['page-05.jpg','Tri-fold Brochure','vector'],['page-06.jpg','Tri-fold Brochure','vector'],['page-07.jpg','Burger Tri-fold Brochure','vector'],['page-08.jpg','Case Study / Agency Layout','vector'],['page-09.jpg','Menu Card','vector'],['page-10.jpg','Magazine Collection','vector'],['page-11.jpg','Instagram Post','vector'],['page-12.jpg','Danglar Collection','vector'],['page-13.jpg','Book Covers','vector'],['page-14.jpg','Packaging','vector'],['page-15.jpg','Standee Collection','vector'],['page-16.jpg','Illustration','vector'],['page-17.jpg','Illustration','vector'],
+['page-19.jpg','Business Card Collection','raster'],['page-20.jpg','Brochure Collection','raster'],['page-21.jpg','Menu Card Collection','raster'],['page-22.jpg','Magazine Collection','raster'],['page-23.jpg','Instagram Post','raster'],['page-24.jpg','Brochure Collection','raster'],['page-25.jpg','Car Service Brochure','raster'],
+['page-26.jpg','Book Cover Collection','raster'],['page-27.jpg','Standee Collection','raster'],['page-28.jpg','Digital Painting Collection','digital'],['page-29.jpg','Digital Painting Collection','digital']
 ];
-
-let items=[];
-let featuredData=[];
-const grid=document.getElementById('grid'),featured=document.getElementById('featured'),filters=document.querySelectorAll('.filter');
-let current=[],activeIndex=0;
-
-const pretty=x=>x==='digital'?'Digital Painting':x.replace(/^\w/,m=>m.toUpperCase());
-const esc=s=>String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-
-function cardHTML(x,i){
-  return `<article class="card" data-index="${i}">
-    <span class="number">${String(i+1).padStart(2,'0')}</span>
-    <img loading="lazy" src="${esc(x.image)}" alt="${esc(x.title)}">
-    <div class="meta"><strong>${esc(x.title)}</strong><span>${pretty(x.category)}</span></div>
-  </article>`;
-}
-function renderFeatured(filter){
-  if(filter!=='all' || !featuredData.length){featured.innerHTML='';featured.style.display='none';return}
-  featured.style.display='grid';
-  featured.innerHTML=featuredData.map((x)=>{
-    const i=items.indexOf(x);
-    return `<article class="feature ${featuredData.indexOf(x)>0?'small':''}" data-feature="${i}">
-      <img loading="lazy" src="${esc(x.image)}" alt="${esc(x.title)}">
-      <span class="corner">↗</span>
-      <div class="feature-info"><span class="title">${esc(x.title)}</span><span class="type">${pretty(x.category)}</span></div>
-    </article>`;
-  }).join('');
-  featured.querySelectorAll('[data-feature]').forEach(el=>el.onclick=()=>openModal(Number(el.dataset.feature)));
-}
-function render(filter='all'){
-  current=items.filter(x=>filter==='all'||x.category===filter);
-  renderFeatured(filter);
-  const featuredSet=new Set(featuredData);
-  const visible=filter==='all'?current.filter(x=>!featuredSet.has(x)):current;
-  grid.innerHTML=visible.map(x=>cardHTML(x,items.indexOf(x))).join('');
-  grid.querySelectorAll('.card').forEach(card=>card.onclick=()=>openModal(Number(card.dataset.index)));
-  bindHoverTargets();
-  observeReveals();
-}
-filters.forEach(b=>b.onclick=()=>{
-  filters.forEach(x=>x.classList.remove('active'));
-  b.classList.add('active');
-  render(b.dataset.filter);
-});
-
+const featuredData=[items[10],items[6],items[23]];
+const grid=document.getElementById('grid'),featured=document.getElementById('featured'),filters=document.querySelectorAll('.filter');let current=[],activeIndex=0;
+const pretty=x=>x.replace('digital','digital painting').replace(/\b\w/g,m=>m.toUpperCase());
+function cardHTML(x,i){const realIndex=items.indexOf(x);return `<article class="card" data-index="${realIndex}"><span class="number">${String(realIndex+1).padStart(2,'0')}</span><img loading="lazy" src="assets/${x[0]}" alt="${x[1]}"><div class="meta"><strong>${x[1]}</strong><span>${pretty(x[2])}</span></div></article>`}
+function renderFeatured(filter){if(filter!=='all'){featured.innerHTML='';featured.style.display='none';return}featured.style.display='grid';featured.innerHTML=featuredData.map((x,i)=>`<article class="feature ${i>0?'small':''}" data-feature="${items.indexOf(x)}"><img loading="lazy" src="assets/${x[0]}" alt="${x[1]}"><span class="corner">↗</span><div class="feature-info"><span class="title">${x[1]}</span><span class="type">${pretty(x[2])}</span></div></article>`).join('');featured.querySelectorAll('[data-feature]').forEach(el=>el.onclick=()=>openModal(Number(el.dataset.feature)))}
+function render(filter='all'){current=items.filter(x=>filter==='all'||x[2]===filter);renderFeatured(filter);const featuredSet=new Set(featuredData.map(x=>items.indexOf(x)));const visible=filter==='all'?current.filter(x=>!featuredSet.has(items.indexOf(x))):current;grid.innerHTML=visible.map((x,i)=>cardHTML(x,i)).join('');grid.querySelectorAll('.card').forEach(card=>card.onclick=()=>openModal(Number(card.dataset.index)));bindHoverTargets()}
+filters.forEach(b=>b.onclick=()=>{filters.forEach(x=>x.classList.remove('active'));b.classList.add('active');render(b.dataset.filter);observeReveals()});
 const modal=document.getElementById('modal'),img=document.getElementById('modalImg'),count=document.getElementById('modalCount');
-function openModal(i){
-  activeIndex=i;
-  const x=items[i];
-  if(!x)return;
-  img.src=x.image;img.alt=x.title;
-  count.textContent=`${String(i+1).padStart(2,'0')} / ${String(items.length).padStart(2,'0')} · ${pretty(x.category)}`;
-  modal.classList.add('open');document.body.style.overflow='hidden';
-}
-function closeModal(){modal.classList.remove('open');document.body.style.overflow=''}
-function move(n){if(!items.length)return;activeIndex=(activeIndex+n+items.length)%items.length;openModal(activeIndex)}
-document.querySelector('.close').onclick=closeModal;
-document.querySelector('.prev').onclick=()=>move(-1);
-document.querySelector('.next').onclick=()=>move(1);
-modal.onclick=e=>{if(e.target===modal)closeModal()};
-document.addEventListener('keydown',e=>{if(modal.classList.contains('open')){if(e.key==='Escape')closeModal();if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1)}});
-document.getElementById('year').textContent=new Date().getFullYear();
-
-const cursor=document.getElementById('cursor');
-window.addEventListener('pointermove',e=>{cursor.style.left=e.clientX+'px';cursor.style.top=e.clientY+'px'});
-function bindHoverTargets(){document.querySelectorAll('a,button,.card,.feature').forEach(el=>{el.onmouseenter=()=>cursor.classList.add('big');el.onmouseleave=()=>cursor.classList.remove('big')})}
-bindHoverTargets();
-
-let observer;
-function observeReveals(){
-  if(observer)observer.disconnect();
-  observer=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');observer.unobserve(e.target)}}),{threshold:.08});
-  document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
-}
-
-async function loadPortfolio(){
-  const cfg=window.SUPABASE_CONFIG||{};
-  if(!cfg.url || !cfg.anonKey || cfg.url.includes('YOUR_') || cfg.anonKey.includes('YOUR_')){
-    items=fallbackItems;
-    featuredData=items.filter(x=>x.featured);
-    render();
-    return;
-  }
-  try{
-    const {createClient}=window.supabase;
-    const client=createClient(cfg.url,cfg.anonKey);
-    const {data,error}=await client.from('projects').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
-    if(error)throw error;
-    items=(data||[]).map(p=>({id:p.id,image:p.image_url,title:p.title,category:p.category,featured:p.featured,sort:p.sort_order,storage_path:p.storage_path}));
-    featuredData=items.filter(x=>x.featured).slice(0,3);
-    render();
-  }catch(err){
-    console.warn('Portfolio database unavailable; using local portfolio.',err);
-    items=fallbackItems;
-    featuredData=items.filter(x=>x.featured);
-    render();
-  }
-}
-loadPortfolio();
+function openModal(i){activeIndex=i;const x=items[i];img.src='assets/'+x[0];img.alt=x[1];count.textContent=`${String(i+1).padStart(2,'0')} / ${String(items.length).padStart(2,'0')} · ${pretty(x[2])}`;modal.classList.add('open');document.body.style.overflow='hidden'}
+function closeModal(){modal.classList.remove('open');document.body.style.overflow=''}function move(n){activeIndex=(activeIndex+n+items.length)%items.length;openModal(activeIndex)}
+document.querySelector('.close').onclick=closeModal;document.querySelector('.prev').onclick=()=>move(-1);document.querySelector('.next').onclick=()=>move(1);modal.onclick=e=>{if(e.target===modal)closeModal()};document.addEventListener('keydown',e=>{if(modal.classList.contains('open')){if(e.key==='Escape')closeModal();if(e.key==='ArrowLeft')move(-1);if(e.key==='ArrowRight')move(1)}});document.getElementById('year').textContent=new Date().getFullYear();
+const cursor=document.getElementById('cursor');window.addEventListener('pointermove',e=>{cursor.style.left=e.clientX+'px';cursor.style.top=e.clientY+'px'});function bindHoverTargets(){document.querySelectorAll('a,button,.card,.feature').forEach(el=>{el.onmouseenter=()=>cursor.classList.add('big');el.onmouseleave=()=>cursor.classList.remove('big')})}bindHoverTargets();
+let observer;function observeReveals(){if(observer)observer.disconnect();observer=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');observer.unobserve(e.target)}}),{threshold:.08});document.querySelectorAll('.reveal').forEach(el=>observer.observe(el))}observeReveals();render();
 </script>
 </body>
 </html>

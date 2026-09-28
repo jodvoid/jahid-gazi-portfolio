@@ -181,13 +181,11 @@ async function loadPortfolio(){
     const client=createClient(cfg.url,cfg.anonKey);
     const {data,error}=await client.from('projects').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
     if(error)throw error;
-    if(data && data.length){
-      items=data.map(p=>({id:p.id,image:p.image_url,title:p.title,category:p.category,featured:p.featured,sort:p.sort_order,storage_path:p.storage_path}));
-      featuredData=items.filter(x=>x.featured).slice(0,3);
-    }else{
-      items=fallbackItems;
-      featuredData=items.filter(x=>x.featured);
-    }
+    const dbItems=(data||[]).map(p=>({id:p.id,image:p.image_url,title:p.title,category:p.category,featured:p.featured,sort:p.sort_order,storage_path:p.storage_path,isDatabase:true}));
+    // Keep the original portfolio and add new Admin projects after it.
+    items=[...fallbackItems,...dbItems];
+    const dbFeatured=dbItems.filter(x=>x.featured);
+    featuredData=[...fallbackItems.filter(x=>x.featured),...dbFeatured].slice(0,3);
     render();
   }catch(err){
     console.warn('Portfolio database unavailable; using local portfolio.',err);

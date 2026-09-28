@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jahid Gazi — Admin</title>
+<meta name="robots" content="noindex,nofollow">
+<style>
+:root{--bg:#0b0b0c;--panel:#141416;--line:#29292d;--text:#f3f0ea;--muted:#a4a09a;--accent:#d9d1c4}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 Arial,sans-serif}
+.wrap{width:min(1100px,92%);margin:auto}.top{padding:30px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+h1{font-size:28px;margin:0}.muted{color:var(--muted)}button{border:0;cursor:pointer}
+.btn{padding:12px 16px;border-radius:8px;background:var(--accent);color:#111;font-weight:700}.btn.secondary{background:#242428;color:#eee}
+main{padding:40px 0 70px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;margin-bottom:24px}
+label{display:block;font-size:13px;color:var(--muted);margin:0 0 7px}input,select{width:100%;padding:13px;border:1px solid var(--line);border-radius:8px;background:#0e0e10;color:#fff;margin-bottom:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.actions{display:flex;gap:10px;flex-wrap:wrap}.status{margin-top:12px;color:var(--muted)}
+.hidden{display:none!important}.projects{display:grid;gap:12px}.project{display:grid;grid-template-columns:90px 1fr auto;gap:16px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:10px;background:#101012}
+.project img{width:90px;height:70px;object-fit:cover;border-radius:6px}.project h3{margin:0 0 4px;font-size:16px}.project p{margin:0;color:var(--muted);font-size:13px}.project .actions{justify-content:flex-end}
+.note{padding:12px 14px;border-radius:8px;background:#1a1a1d;color:#bbb;font-size:13px;margin-bottom:16px}
+@media(max-width:700px){.row{grid-template-columns:1fr}.project{grid-template-columns:70px 1fr}.project .actions{grid-column:1/-1;justify-content:flex-start}.project img{width:70px;height:60px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div><h1>Portfolio Admin</h1><div class="muted">Jahid Gazi — private dashboard</div></div>
+    <button id="logoutBtn" class="btn secondary hidden">Log out</button>
+  </header>
+
+  <main>
+    <section id="loginPanel" class="panel">
+      <h2>Admin Login</h2>
+      <p class="muted">Only the Supabase user added to <code>admin_users</code> can manage the portfolio.</p>
+      <label>Email</label><input id="email" type="email" autocomplete="username">
+      <label>Password</label><input id="password" type="password" autocomplete="current-password">
+      <button id="loginBtn" class="btn">Log in</button>
+      <div id="loginStatus" class="status"></div>
+    </section>
+
+    <section id="dashboard" class="hidden">
+      <div class="panel">
+        <h2 id="formTitle">Add new work</h2>
+        <div class="note">Image upload goes to your Supabase <b>portfolio</b> storage bucket. Your public site will update automatically after saving.</div>
+        <input id="editId" type="hidden">
+        <label>Project title</label><input id="title" placeholder="e.g. Facebook Cover Design">
+        <div class="row">
+          <div><label>Category</label>
+            <select id="category"><option value="vector">Vector Work</option><option value="raster">Raster Work</option><option value="digital">Digital Painting</option></select>
+          </div>
+          <div><label>Display order</label><input id="sortOrder" type="number" value="100"></div>
+        </div>
+        <label><input id="featured" type="checkbox" style="width:auto;margin-right:8px">Show as featured project</label>
+        <label>Image <span class="muted">(required for a new project; optional when editing)</span></label>
+        <input id="imageFile" type="file" accept="image/*">
+        <div class="actions">
+          <button id="saveBtn" class="btn">Save work</button>
+          <button id="cancelBtn" class="btn secondary hidden">Cancel edit</button>
+        </div>
+        <div id="saveStatus" class="status"></div>
+      </div>
+
+      <div class="panel">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center">
+          <div><h2 style="margin:0">Your work</h2><div class="muted">Add, edit or delete portfolio items.</div></div>
+          <button id="refreshBtn" class="btn secondary">Refresh</button>
+        </div>
+        <div id="projects" class="projects" style="margin-top:18px"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script>
+const cfg=window.SUPABASE_CONFIG||{};
+const $=id=>document.getElementById(id);
+let sb=null;
+
+function configured(){
+  return cfg.url && cfg.anonKey && !cfg.url.includes('YOUR_') && !cfg.anonKey.includes('YOUR_');
+}
+function setStatus(id,msg,error=false){$(id).textContent=msg;$(id).style.color=error?'#ff9c9c':'var(--muted)'}
+function resetForm(){
+  $('editId').value='';$('title').value='';$('category').value='vector';$('sortOrder').value='100';$('featured').checked=false;$('imageFile').value='';
+  $('formTitle').textContent='Add new work';$('saveBtn').textContent='Save work';$('cancelBtn').classList.add('hidden');
+}
+async function checkAdmin(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){showLogin();return}
+  const {data,error}=await sb.from('admin_users').select('user_id').eq('user_id',session.user.id).maybeSingle();
+  if(error || !data){await sb.auth.signOut();setStatus('loginStatus','This account is not an approved admin.',true);showLogin();return}
+  $('loginPanel').classList.add('hidden');$('dashboard').classList.remove('hidden');$('logoutBtn').classList.remove('hidden');loadProjects();
+}
+function showLogin(){$('loginPanel').classList.remove('hidden');$('dashboard').classList.add('hidden');$('logoutBtn').classList.add('hidden')}
+async function loadProjects(){
+  $('projects').innerHTML='<div class="muted">Loading…</div>';
+  const {data,error}=await sb.from('projects').select('*').order('sort_order',{ascending:true}).order('created_at',{ascending:true});
+  if(error){$('projects').innerHTML='<div class="muted">'+error.message+'</div>';return}
+  if(!data.length){$('projects').innerHTML='<div class="muted">No projects yet.</div>';return}
+  $('projects').innerHTML=data.map(p=>`<article class="project">
+    <img src="${p.image_url}" alt="">
+    <div><h3>${escapeHtml(p.title)}</h3><p>${escapeHtml(p.category)}${p.featured?' · Featured':''}</p></div>
+    <div class="actions"><button class="btn secondary" onclick="editProject('${p.id}')">Edit</button><button class="btn secondary" onclick="deleteProject('${p.id}')">Delete</button></div>
+  </article>`).join('');
+  window.projectsCache=data;
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+window.editProject=id=>{
+  const p=(window.projectsCache||[]).find(x=>x.id===id);if(!p)return;
+  $('editId').value=p.id;$('title').value=p.title;$('category').value=p.category;$('sortOrder').value=p.sort_order;$('featured').checked=p.featured;
+  $('formTitle').textContent='Edit work';$('saveBtn').textContent='Update work';$('cancelBtn').classList.remove('hidden');window.scrollTo({top:0,behavior:'smooth'});
+}
+window.deleteProject=async id=>{
+  if(!confirm('Delete this portfolio item?'))return;
+  const p=(window.projectsCache||[]).find(x=>x.id===id);
+  const {error}=await sb.from('projects').delete().eq('id',id);
+  if(error){alert(error.message);return}
+  if(p?.storage_path) await sb.storage.from('portfolio').remove([p.storage_path]);
+  loadProjects();
+}
+$('loginBtn').onclick=async()=>{
+  if(!configured()){setStatus('loginStatus','First fill in supabase-config.js.',true);return}
+  setStatus('loginStatus','Signing in…');
+  const {error}=await sb.auth.signInWithPassword({email:$('email').value,password:$('password').value});
+  if(error){setStatus('loginStatus',error.message,true);return}
+  checkAdmin();
+};
+$('logoutBtn').onclick=async()=>{await sb.auth.signOut();showLogin()};
+$('cancelBtn').onclick=resetForm;
+$('refreshBtn').onclick=loadProjects;
+
+$('saveBtn').onclick=async()=>{
+  const title=$('title').value.trim(),category=$('category').value,sort=Number($('sortOrder').value||100),featured=$('featured').checked,id=$('editId').value,file=$('imageFile').files[0];
+  if(!title){setStatus('saveStatus','Enter a project title.',true);return}
+  if(!id && !file){setStatus('saveStatus','Choose an image for the new project.',true);return}
+  setStatus('saveStatus','Saving…');
+  let image_url=null,storage_path=null;
+  if(file){
+    const ext=(file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const path=`${crypto.randomUUID()}.${ext}`;
+    const up=await sb.storage.from('portfolio').upload(path,file,{cacheControl:'31536000',upsert:false});
+    if(up.error){setStatus('saveStatus',up.error.message,true);return}
+    image_url=sb.storage.from('portfolio').getPublicUrl(path).data.publicUrl;storage_path=path;
+  }
+  if(id){
+    const payload={title,category,sort_order:sort,featured,updated_at:new Date().toISOString()};
+    if(image_url){payload.image_url=image_url;payload.storage_path=storage_path}
+    const {error}=await sb.from('projects').update(payload).eq('id',id);
+    if(error){if(storage_path)await sb.storage.from('portfolio').remove([storage_path]);setStatus('saveStatus',error.message,true);return}
+  }else{
+    const {error}=await sb.from('projects').insert({title,category,sort_order:sort,featured,image_url,storage_path});
+    if(error){if(storage_path)await sb.storage.from('portfolio').remove([storage_path]);setStatus('saveStatus',error.message,true);return}
+  }
+  setStatus('saveStatus','Saved successfully.');
+  resetForm();loadProjects();
+};
+
+if(!configured()){
+  setStatus('loginStatus','Setup required: add your Supabase Project URL and anon/publishable key to supabase-config.js.',true);
+}else{
+  sb=window.supabase.createClient(cfg.url,cfg.anonKey);
+  checkAdmin();
+}
+</script>
+</body>
+</html>
